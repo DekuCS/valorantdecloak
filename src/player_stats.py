@@ -1,11 +1,20 @@
 import time
 from urllib.parse import quote
 
-import requests
+# tracker.gg blocks plain `requests` calls with Cloudflare (HTTP 403
+# "You've Been Blocked"). curl_cffi impersonates a real Chrome TLS/HTTP
+# fingerprint so the API accepts the request. Falls back to plain requests
+# (which will likely be blocked) if curl_cffi is not installed yet.
+try:
+    from curl_cffi import requests as tracker_requests
+    TRACKER_IMPERSONATE = "chrome"
+    TRACKER_REQUESTS_KW = {"impersonate": TRACKER_IMPERSONATE}
+except ImportError:
+    import requests as tracker_requests
+    TRACKER_REQUESTS_KW = {}
 
 TRACKER_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Accept": "application/json",
     "Referer": "https://tracker.gg/",
 }
@@ -66,7 +75,7 @@ class PlayerStats:
         """Full current-season KD/HS from tracker.gg. Returns dict or None."""
         try:
             url = f"https://api.tracker.gg/api/v2/valorant/standard/profile/riot/{quote(name)}"
-            r = requests.get(url, headers=TRACKER_HEADERS, timeout=15)
+            r = tracker_requests.get(url, headers=TRACKER_HEADERS, timeout=15, **TRACKER_REQUESTS_KW)
             if r.status_code != 200:
                 return None
             segments = r.json().get("data", {}).get("segments", [])
